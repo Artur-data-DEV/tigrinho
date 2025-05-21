@@ -89,13 +89,34 @@ export default function Home() {
     ]);
   };
 
-  const login = () => {
+  const login = async () => {
     if (!pixCode.trim()) {
       setMensagem("Informe um código Pix.");
       return;
     }
-    setToken("fake-token");
-    setMensagem("Login feito!");
+
+    setMensagem("Fazendo login...");
+
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pixCode }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMensagem(data.error || "Erro ao fazer login.");
+        return;
+      }
+
+      setToken(data.token);
+      setSaldo(data.saldo);
+      setMensagem("Login feito com sucesso!");
+    } catch {
+      setMensagem("Erro na requisição de login.");
+    }
   };
 
   const logout = () => {
@@ -126,7 +147,7 @@ export default function Home() {
         </>
       ) : (
         <>
-          <h1 className="text-2xl font-bold mb-4">Bem-vindo ao Tigrinho</h1>
+          <h1 className="text-2xl font-bold mb-4"> Tigrinho 🐯</h1>
           <p>Saldo: R$ {saldo.toFixed(2)}</p>
 
           <input
@@ -160,15 +181,17 @@ export default function Home() {
             <div className="mt-6 text-left">
               <h2 className="font-bold mb-2">Histórico:</h2>
               <ul className="border p-2 rounded max-h-40 overflow-y-auto">
-                {history.map((j) => (
-                  <li
-                    key={j.id}
-                    className={j.won ? "text-green-700" : "text-red-700"}
-                  >
-                    [{j.timestamp}] Apostou R$ {j.amount.toFixed(2)} -{" "}
-                    {j.won ? "Ganhou 🎉" : "Perdeu 😞"}
-                  </li>
-                ))}
+                {history.map((j) => {
+                  return (
+                    <li
+                      key={j.id}
+                      className={j.won ? "text-green-700" : "text-red-700"}
+                    >
+                      [{j.timestamp}] Apostou R$ {j.amount.toFixed(2)} -{" "}
+                      {j.won ? "Ganhou 🎉" : "Perdeu 😞"}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
