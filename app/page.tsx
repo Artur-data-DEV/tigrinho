@@ -1,103 +1,179 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+
+type Jogada = {
+  id: number;
+  won: boolean;
+  amount: number;
+  timestamp: string;
+};
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [pixCode, setPixCode] = useState("");
+  const [token, setToken] = useState<string | null>(null);
+  const [saldo, setSaldo] = useState<number>(100);
+  const [amountToBet, setAmountToBet] = useState<number>(10);
+  const [mensagem, setMensagem] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [history, setHistory] = useState<Jogada[]>([]);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  // Só no cliente, lê localStorage e atualiza estados
+  useEffect(() => {
+    const savedToken = localStorage.getItem("token");
+    if (savedToken) {
+      setToken(savedToken);
+    }
+    const savedSaldo = localStorage.getItem("saldo");
+    if (savedSaldo) {
+      setSaldo(Number(savedSaldo));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (token !== null) localStorage.setItem("token", token);
+    localStorage.setItem("saldo", saldo.toString());
+  }, [token, saldo]);
+
+  // trecho dentro da função jogar()
+  const jogar = async () => {
+    if (!token) {
+      setMensagem("Faça login primeiro.");
+      return;
+    }
+
+    if (amountToBet <= 0) {
+      setMensagem("Valor inválido.");
+      return;
+    }
+    if (amountToBet > saldo) {
+      setMensagem("Saldo insuficiente.");
+      return;
+    }
+
+    setLoading(true);
+    setMensagem("Jogando...");
+
+    const res = await fetch("/api/play", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ amount: amountToBet }),
+    });
+
+    const data = await res.json();
+    setLoading(false);
+
+    if (!res.ok) {
+      setMensagem(data.error || "Erro ao jogar.");
+      return;
+    }
+
+    const novoSaldo = data.won ? saldo + amountToBet : saldo - amountToBet;
+
+    setSaldo(novoSaldo);
+    localStorage.setItem("saldo", novoSaldo.toString());
+
+    setMensagem(data.won ? "Você GANHOU!" : "Você PERDEU!");
+
+    setHistory((h) => [
+      {
+        id: h.length + 1,
+        won: data.won,
+        amount: amountToBet,
+        timestamp: new Date().toLocaleTimeString(),
+      },
+      ...h,
+    ]);
+  };
+
+  const login = () => {
+    if (!pixCode.trim()) {
+      setMensagem("Informe um código Pix.");
+      return;
+    }
+    setToken("fake-token");
+    setMensagem("Login feito!");
+  };
+
+  const logout = () => {
+    setToken(null);
+    setSaldo(100);
+    setHistory([]);
+    setMensagem("Saiu da conta.");
+  };
+
+  return (
+    <main className="max-w-md mx-auto p-6 text-center">
+      {!token ? (
+        <>
+          <h1 className="text-xl font-bold mb-4">Login</h1>
+          <input
+            type="text"
+            value={pixCode}
+            onChange={(e) => setPixCode(e.target.value)}
+            placeholder="Seu código Pix"
+            className="border p-2 w-full mb-2"
+          />
+          <button
+            onClick={login}
+            className="bg-blue-600 text-white px-4 py-2 rounded w-full"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Entrar
+          </button>
+        </>
+      ) : (
+        <>
+          <h1 className="text-2xl font-bold mb-4">Bem-vindo ao Tigrinho</h1>
+          <p>Saldo: R$ {saldo.toFixed(2)}</p>
+
+          <input
+            type="number"
+            value={amountToBet === 0 ? "" : amountToBet}
+            onChange={(e) => {
+              const val = e.target.value;
+              setAmountToBet(val === "" ? 0 : Number(val));
+            }}
+            className="border p-2 w-full my-3"
+          />
+
+          <button
+            onClick={jogar}
+            disabled={loading}
+            className="bg-green-600 text-white px-4 py-2 rounded w-full mb-2"
           >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+            {loading ? "Jogando..." : "Jogar"}
+          </button>
+
+          <button
+            onClick={logout}
+            className="bg-red-500 text-white px-4 py-2 rounded w-full"
+          >
+            Sair
+          </button>
+
+          {mensagem && <p className="mt-4">{mensagem}</p>}
+
+          {history.length > 0 && (
+            <div className="mt-6 text-left">
+              <h2 className="font-bold mb-2">Histórico:</h2>
+              <ul className="border p-2 rounded max-h-40 overflow-y-auto">
+                {history.map((j) => (
+                  <li
+                    key={j.id}
+                    className={j.won ? "text-green-700" : "text-red-700"}
+                  >
+                    [{j.timestamp}] Apostou R$ {j.amount.toFixed(2)} -{" "}
+                    {j.won ? "Ganhou 🎉" : "Perdeu 😞"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+    </main>
   );
 }
